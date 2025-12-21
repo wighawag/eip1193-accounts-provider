@@ -1,6 +1,6 @@
 {
 	"name": "eip-1193-accounts-wrapper",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"description": "extends eip-1193 provider with accounts",
 	"publishConfig": {
 		"access": "public"

@@ -32,6 +32,7 @@ export function extendProviderWithAccounts(
 	function parseTxParams(tx: any): any {
 		const params: any = {};
 		if (tx.to) params.to = tx.to;
+		if (tx.value) params.value = BigInt(tx.value);
 		if (tx.data) params.data = tx.data;
 		if (tx.gas) params.gas = BigInt(tx.gas);
 		if (tx.nonce) params.nonce = parseInt(tx.nonce, 16);
