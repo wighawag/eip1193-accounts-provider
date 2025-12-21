@@ -23,9 +23,6 @@ export interface ProviderOptions {
 				list: `0x${string}`[];
 		  }
 	);
-	fixes?: {
-		tevmPendingCount?: boolean;
-	};
 }
 
 export async function extendProviderWithAccounts(
@@ -164,21 +161,7 @@ export async function extendProviderWithAccounts(
 		},
 	};
 
-	const tevmPendingCountFix: Record<string, (params: any[]) => Promise<any>> | undefined = options?.fixes
-		?.tevmPendingCount
-		? {
-				eth_getTransactionCount: async (params) => {
-					const modifiedParam1 = params[1] === 'pending' ? 'latest' : params[1];
-					return provider.request({
-						method: 'eth_getTransactionCount',
-						params: [params[0], modifiedParam1],
-					});
-				},
-			}
-		: undefined;
-
 	const handlers: Record<string, (params: any[]) => Promise<any>> = {
-		...tevmPendingCountFix,
 		...accountHandlers,
 	};
 	return {
