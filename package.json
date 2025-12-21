@@ -1,5 +1,5 @@
 {
-	"name": "eip1193-accounts-provider",
+	"name": "eip-1193-accounts-wrapper",
 	"version": "0.0.1",
 	"description": "extends eip-1193 provider with accounts",
 	"publishConfig": {
