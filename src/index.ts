@@ -1,6 +1,17 @@
 import {privateKeyToAccount, mnemonicToAccount, LocalAccount} from 'viem/accounts';
 
-import type {EIP1193ProviderWithoutEvents} from 'eip-1193';
+import type {EIP1193ProviderWithoutEvents, EIP1193TransactionData} from 'eip-1193';
+import {
+	Chain,
+	createPublicClient,
+	createWalletClient,
+	custom,
+	defineChain,
+	PublicClient,
+	SendTransactionParameters,
+	Transport,
+	WalletClient,
+} from 'viem';
 
 export type {EIP1193ProviderWithoutEvents};
 
@@ -29,27 +40,36 @@ export function extendProviderWithAccounts(
 	provider: EIP1193ProviderWithoutEvents,
 	options?: ProviderOptions,
 ): EIP1193ProviderWithoutEvents {
-	function parseTxParams(tx: any): any {
-		const params: any = {};
-		if (tx.to) params.to = tx.to;
-		if (tx.value) params.value = BigInt(tx.value);
-		if (tx.data) params.data = tx.data;
-		if (tx.gas) params.gas = BigInt(tx.gas);
-		if (tx.nonce) params.nonce = parseInt(tx.nonce, 16);
-		if (tx.chainId) params.chainId = parseInt(tx.chainId, 16);
-		if (tx.accessList) params.accessList = tx.accessList;
-		if (tx.type === '0x1') {
-			params.type = 'eip2930';
-			if (tx.gasPrice) params.gasPrice = BigInt(tx.gasPrice);
-		} else if (tx.type === '0x2') {
-			params.type = 'eip1559';
-			if (tx.maxFeePerGas) params.maxFeePerGas = BigInt(tx.maxFeePerGas);
-			if (tx.maxPriorityFeePerGas) params.maxPriorityFeePerGas = BigInt(tx.maxPriorityFeePerGas);
-		} else {
-			params.type = 'legacy';
-			if (tx.gasPrice) params.gasPrice = BigInt(tx.gasPrice);
+	let clients: {wallet: WalletClient<Transport, Chain>; public: PublicClient<Transport, Chain>} | undefined;
+	async function getClients() {
+		if (clients) {
+			return clients;
 		}
-		return params;
+		const chainId = await provider.request({method: 'eth_chainId'});
+
+		const chain = defineChain({
+			id: Number(chainId),
+			name: 'unknown',
+			nativeCurrency: {symbol: 'ETH', decimals: 18, name: 'ETH'},
+			rpcUrls: {
+				default: {
+					http: [],
+				},
+			},
+		});
+		const walletClient = createWalletClient({
+			transport: custom(provider),
+			chain,
+		});
+		const publicClient = createPublicClient({
+			transport: custom(provider),
+			chain,
+		});
+		clients = {
+			wallet: walletClient,
+			public: publicClient,
+		};
+		return clients;
 	}
 
 	const accounts: LocalAccount[] = [];
@@ -83,23 +103,69 @@ export function extendProviderWithAccounts(
 		return false;
 	};
 
+	function toViemTransaction(tx: EIP1193TransactionData): Omit<SendTransactionParameters, 'account' | 'chain'> {
+		if (tx?.type === '0x1') {
+			return {
+				type: 'eip2930',
+				to: tx.to,
+				nonce: tx.nonce ? Number(tx.nonce) : undefined,
+				gas: tx.gas ? BigInt(tx.gas) : undefined,
+				gasPrice: tx.gasPrice ? BigInt(tx.gasPrice) : undefined,
+				data: tx.data,
+				accessList: tx.accessList,
+				value: tx.value ? BigInt(tx.value) : undefined,
+			};
+		} else if (tx?.type === '0x2') {
+			return {
+				type: 'eip1559',
+				to: tx.to,
+				nonce: tx.nonce ? Number(tx.nonce) : undefined,
+				gas: tx.gas ? BigInt(tx.gas) : undefined,
+				maxFeePerGas: tx.maxFeePerGas ? BigInt(tx.maxFeePerGas) : undefined,
+				maxPriorityFeePerGas: tx.maxPriorityFeePerGas ? BigInt(tx.maxPriorityFeePerGas) : undefined,
+				data: tx.data,
+				accessList: tx.accessList,
+				value: tx.value ? BigInt(tx.value) : undefined,
+				// sidecars
+				// maxFeePerBlobGas
+				// kzg
+				// authorizationList
+				// blobs
+				// blobVersionedHashes
+			};
+		} else if (!tx.type || tx.type === '0x0') {
+			return {
+				type: 'eip2930',
+				to: tx.to,
+				nonce: tx.nonce ? Number(tx.nonce) : undefined,
+				gas: tx.gas ? BigInt(tx.gas) : undefined,
+				gasPrice: tx.gasPrice ? BigInt(tx.gasPrice) : undefined,
+				data: tx.data,
+				value: tx.value ? BigInt(tx.value) : undefined,
+			};
+		} else {
+			throw new Error(`tx type ${tx.type} not implemented`);
+		}
+	}
+
 	const accountHandlers: Record<string, (params: any[]) => Promise<any>> = {
 		eth_sendTransaction: async (params) => {
-			const tx = params[0];
+			const tx: EIP1193TransactionData = params[0];
+			const viemTx = toViemTransaction(tx);
 			const account = accounts.find((a) => a.address === tx.from);
 			const impersonate = options?.impersonate;
-
+			const clients = await getClients();
 			if (impersonate?.mode !== 'always' && account) {
-				const signedTx = await account.signTransaction(parseTxParams(tx));
-				return await provider.request({
-					method: 'eth_sendRawTransaction',
-					params: [signedTx],
-				});
+				return clients.wallet.sendTransaction({
+					...viemTx,
+					account,
+				} as any);
 			} else if (impersonate) {
 				if (shouldImpersonate(tx.from)) {
 					await impersonate.impersonator.impersonateAccount({
 						address: tx.from as `0x${string}`,
 					});
+
 					return await provider.request({
 						method: 'eth_sendTransaction',
 						params: [tx],
@@ -135,14 +201,13 @@ export function extendProviderWithAccounts(
 			return account.signMessage({message});
 		},
 		eth_signTransaction: async (params) => {
-			const tx = params[0];
-			const account = accounts.find((a) => a.address === tx.from);
-			if (!account) {
-				throw new Error('Account not available for signing');
-			}
-			const signTxParams = parseTxParams(tx);
-			if (tx.value) signTxParams.value = BigInt(tx.value);
-			return account.signTransaction(signTxParams);
+			throw new Error('eth_signTransaction not implemented');
+			// const tx = params[0];
+			// const account = accounts.find((a) => a.address === tx.from);
+			// if (!account) {
+			// 	throw new Error('Account not available for signing');
+			// }
+			// return account.signTransaction(signTxParams);
 		},
 		eth_signTypedData: async (params) => {
 			const [address, typedData] = params;
