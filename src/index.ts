@@ -25,10 +25,10 @@ export interface ProviderOptions {
 	);
 }
 
-export async function extendProviderWithAccounts(
+export function extendProviderWithAccounts(
 	provider: EIP1193ProviderWithoutEvents,
 	options?: ProviderOptions,
-): Promise<EIP1193ProviderWithoutEvents> {
+): EIP1193ProviderWithoutEvents {
 	function parseTxParams(tx: any): any {
 		const params: any = {};
 		if (tx.to) params.to = tx.to;
