@@ -34,6 +34,7 @@ export interface ProviderOptions {
 				list: `0x${string}`[];
 		  }
 	);
+	doNotFillMissingFields?: boolean;
 }
 
 export function extendProviderWithAccounts(
@@ -92,6 +93,27 @@ export function extendProviderWithAccounts(
 			}
 		}
 	}
+
+	function validateTransaction(tx: EIP1193TransactionData) {
+		const errors: string[] = [];
+		if (!tx.from) errors.push('from');
+		if (!tx.gas) errors.push('gas');
+		if (!tx.nonce) errors.push('nonce');
+		const txAny = tx as any;
+		const hasGasPrice = txAny.gasPrice !== undefined;
+		const hasMaxFee = txAny.maxFeePerGas !== undefined;
+		const hasMaxPriority = txAny.maxPriorityFeePerGas !== undefined;
+		if (tx.type === '0x2') {
+			if (!hasMaxFee) errors.push('maxFeePerGas');
+			if (!hasMaxPriority) errors.push('maxPriorityFeePerGas');
+		} else {
+			if (!hasGasPrice) errors.push('gasPrice');
+		}
+		if (errors.length > 0) {
+			throw new Error(`Missing mandatory fields: ${errors.join(', ')}`);
+		}
+	}
+
 	const shouldImpersonate = (address: string) => {
 		if (options?.impersonate?.mode === 'always') {
 			return true;
@@ -151,6 +173,9 @@ export function extendProviderWithAccounts(
 	const accountHandlers: Record<string, (params: any[]) => Promise<any>> = {
 		eth_sendTransaction: async (params) => {
 			const tx: EIP1193TransactionData = params[0];
+			if (options?.doNotFillMissingFields) {
+				validateTransaction(tx);
+			}
 			const viemTx = toViemTransaction(tx);
 			const account = accounts.find((a) => a.address === tx.from);
 			const impersonate = options?.impersonate;
