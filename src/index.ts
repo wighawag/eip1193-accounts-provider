@@ -118,7 +118,7 @@ export function extendProviderWithAccounts(
 		if (options?.impersonate?.mode === 'always') {
 			return true;
 		} else if (options?.impersonate?.mode == 'unknown') {
-			return !accounts.some((a) => a.address === address);
+			return !accounts.some((a) => a.address.toLowerCase() === address.toLowerCase());
 		} else if (options?.impersonate?.mode === 'list') {
 			return options.impersonate.list.includes(address as `0x${string}`) || false;
 		}
@@ -177,7 +177,7 @@ export function extendProviderWithAccounts(
 				validateTransaction(tx);
 			}
 			const viemTx = toViemTransaction(tx);
-			const account = accounts.find((a) => a.address === tx.from);
+			const account = accounts.find((a) => a.address.toLowerCase() === tx.from.toLowerCase());
 			const impersonate = options?.impersonate;
 			const clients = await getClients();
 			if (impersonate?.mode !== 'always' && account) {
