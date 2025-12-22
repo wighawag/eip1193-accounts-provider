@@ -35,7 +35,7 @@ export interface ProviderOptions {
 		  }
 	);
 	doNotFillMissingFields?: boolean;
-	handlers: Record<string, (params?: any[]) => Promise<any>>;
+	handlers?: Record<string, (params?: any[]) => Promise<any>>;
 }
 
 export function extendProviderWithAccounts(
