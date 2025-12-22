@@ -35,6 +35,7 @@ export interface ProviderOptions {
 		  }
 	);
 	doNotFillMissingFields?: boolean;
+	handlers: Record<string, (params?: any[]) => Promise<any>>;
 }
 
 export function extendProviderWithAccounts(
@@ -254,6 +255,7 @@ export function extendProviderWithAccounts(
 
 	const handlers: Record<string, (params: any[]) => Promise<any>> = {
 		...accountHandlers,
+		...options?.handlers,
 	};
 	return {
 		request: async (args: {method: string; params?: any[]}) => {
