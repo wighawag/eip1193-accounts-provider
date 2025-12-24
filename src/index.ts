@@ -135,7 +135,7 @@ export function extendProviderWithAccounts(
 			const {method, params = []} = args;
 			const handler = handlers[method];
 			if (!handler) {
-				return provider.request({
+				return providerToExtend.request({
 					method: args.method,
 					params: args.params,
 				} as any);
