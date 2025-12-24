@@ -35,7 +35,7 @@ export interface ProviderOptions {
 		  }
 	);
 	doNotFillMissingFields?: boolean;
-	handlers?: Record<string, (provider: EIP1193ProviderWithoutEvents, params?: any[]) => Promise<any>>;
+	handlers?: Record<string, (params?: any[]) => Promise<any>>;
 }
 
 export function extendProviderWithAccounts(
@@ -44,8 +44,8 @@ export function extendProviderWithAccounts(
 ): EIP1193ProviderWithoutEvents {
 	let clients: {wallet: WalletClient<Transport, Chain>; public: PublicClient<Transport, Chain>} | undefined;
 
-	const accountHandlers: Record<string, (provider: EIP1193ProviderWithoutEvents, params: any[]) => Promise<any>> = {
-		eth_sendTransaction: async (provider, params) => {
+	const accountHandlers: Record<string, (params: any[]) => Promise<any>> = {
+		eth_sendTransaction: async (params) => {
 			const tx: EIP1193TransactionData = params[0];
 			if (options?.doNotFillMissingFields) {
 				validateTransaction(tx);
@@ -82,7 +82,7 @@ export function extendProviderWithAccounts(
 		eth_requestAccounts: async () => {
 			return accounts.map((a) => a.address);
 		},
-		personal_sign: async (provider, params) => {
+		personal_sign: async (params) => {
 			const [message, address] = params;
 			const account = accounts.find((a) => a.address === address);
 			if (!account) {
@@ -91,7 +91,7 @@ export function extendProviderWithAccounts(
 			const prefixedMessage = `\x19Ethereum Signed Message:\n${message.length}${message}`;
 			return account.signMessage({message: prefixedMessage});
 		},
-		eth_sign: async (provider, params) => {
+		eth_sign: async (params) => {
 			const [address, message] = params;
 			const account = accounts.find((a) => a.address === address);
 			if (!account) {
@@ -99,7 +99,7 @@ export function extendProviderWithAccounts(
 			}
 			return account.signMessage({message});
 		},
-		eth_signTransaction: async (provider, params) => {
+		eth_signTransaction: async (params) => {
 			throw new Error('eth_signTransaction not implemented');
 			// const tx = params[0];
 			// const account = accounts.find((a) => a.address === tx.from);
@@ -108,7 +108,7 @@ export function extendProviderWithAccounts(
 			// }
 			// return account.signTransaction(signTxParams);
 		},
-		eth_signTypedData: async (provider, params) => {
+		eth_signTypedData: async (params) => {
 			const [address, typedData] = params;
 			const account = accounts.find((a) => a.address === address);
 			if (!account) {
@@ -116,7 +116,7 @@ export function extendProviderWithAccounts(
 			}
 			return account.signTypedData(typedData);
 		},
-		eth_signTypedData_v4: async (provider, params) => {
+		eth_signTypedData_v4: async (params) => {
 			const [address, typedData] = params;
 			const account = accounts.find((a) => a.address === address);
 			if (!account) {
@@ -126,7 +126,7 @@ export function extendProviderWithAccounts(
 		},
 	};
 
-	const handlers: Record<string, (provider: EIP1193ProviderWithoutEvents, params: any[]) => Promise<any>> = {
+	const handlers: Record<string, (params: any[]) => Promise<any>> = {
 		...accountHandlers,
 		...options?.handlers,
 	};
@@ -140,7 +140,7 @@ export function extendProviderWithAccounts(
 					params: args.params,
 				} as any);
 			}
-			return handler(provider, params);
+			return handler(params);
 		},
 	} as EIP1193ProviderWithoutEvents;
 
